@@ -1,8 +1,0 @@
-{
-"type": "FeatureCollection",
-"name": "divisas_300492",
-"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
-"features": [
-{ "type": "Feature", "properties": { "NOME_FAZ": "SITIO SANTA IZABEL", "ZONA": 1, "TALHAO": 1, "AREA_TOTAL": 13.986479696878506, "FAZENDA": "300492" }, "geometry": { "type": "Polygon", "coordinates": [ [ [ -50.44521, -21.42637 ], [ -50.4451, -21.42766 ], [ -50.44534, -21.4277 ], [ -50.45307, -21.42509 ], [ -50.45309, -21.42491 ], [ -50.45253, -21.42366 ], [ -50.4453, -21.42618 ], [ -50.44521, -21.42637 ] ] ] } }
-]
-}
