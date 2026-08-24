@@ -70,6 +70,12 @@
 </head>
 <body>
 
+    <!-- A MÁGICA ACONTECE AQUI: Formulário Oculto Anti-Bloqueio -->
+    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;" onload="if(submitted){ onFormSubmitted(); }"></iframe>
+    <form id="hidden_form" action="https://script.google.com/macros/s/AKfycbx6vNU0kD0vVK-b8G7CcEk2CBai6mIOGslIjw6_YnpMywyAxgJmo7rAA8EzPIM45QkTpQ/exec" method="POST" target="hidden_iframe" style="display:none;">
+        <input type="hidden" name="payloadData" id="payloadDataInput">
+    </form>
+
     <button id="toggle-menu"><i class="fas fa-bars"></i></button>
 
     <div id="banner-selecao">
@@ -144,8 +150,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 
     <script>
-        const URL_WEBHOOK_GOOGLE_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbx6vNU0kD0vVK-b8G7CcEk2CBai6mIOGslIjw6_YnpMywyAxgJmo7rAA8EzPIM45QkTpQ/exec"; 
-
         Chart.register(ChartDataLabels);
 
         var map = L.map('map', { zoomControl: false }).setView([-21.2, -50.4], 9);
@@ -163,7 +167,9 @@
         var chavesSelecionadas = new Set();
         var fazendaFiltradaAtual = "";
         
+        // Agora armazenamos puramente a CHAVE única para vincular
         var itensParaLancar = [];
+        var submitted = false;
 
         var coresFixas = {
             'CLASSE': {
@@ -238,19 +244,13 @@
                 geojsonData.features.forEach(function(f) {
                     var chaveMap = String(f.properties.CHAVE).trim();
                     if(chavesSelecionadas.has(chaveMap)) {
-                        itensParaLancar.push({
-                            fazenda: String(f.properties.FAZENDA || '').trim(),
-                            talhao: String(f.properties.TALHAO || '').trim()
-                        });
+                        itensParaLancar.push(chaveMap);
                     }
                 });
                 document.getElementById('modal-title').innerText = "LANÇAR VOO (PARCIAL)";
             } else {
                 geojsonLayer.eachLayer(function(l) { 
-                    itensParaLancar.push({
-                        fazenda: String(l.feature.properties.FAZENDA || '').trim(),
-                        talhao: String(l.feature.properties.TALHAO || '').trim()
-                    });
+                    itensParaLancar.push(String(l.feature.properties.CHAVE || '').trim());
                 });
                 document.getElementById('modal-title').innerText = "LANÇAR VOO: " + fazendaFiltradaAtual.toUpperCase();
             }
@@ -264,7 +264,7 @@
             document.getElementById('modal-overlay').style.display = 'none';
         }
 
-        // A OPÇÃO NUCLEAR: Envia dados quebrando a segurança de CORS do Google!
+        // ENVIO INQUEBRÁVEL VIA FORMULÁRIO OCULTO
         function enviarDadosAppScript() {
             var btn = document.getElementById('btn-submit');
             var dataVoo = document.getElementById('form-data').value;
@@ -274,18 +274,11 @@
 
             var dataFormatadaBR = dataVoo.split('-').reverse().join('/');
 
+            // Atualiza o mapa imediatamente
             geojsonData.features.forEach(function(f) {
-                var fFazenda = String(f.properties.FAZENDA || '').trim();
-                var fTalhao = String(f.properties.TALHAO || '').trim();
+                var fChave = String(f.properties.CHAVE || '').trim();
 
-                var isMatch = false;
-                for(var i = 0; i < itensParaLancar.length; i++) {
-                    if(itensParaLancar[i].fazenda === fFazenda && itensParaLancar[i].talhao === fTalhao) {
-                        isMatch = true; break;
-                    }
-                }
-
-                if (isMatch) {
+                if (itensParaLancar.includes(fChave)) {
                     f.properties['DATA VOO'] = dataFormatadaBR;
                     f.properties['OBSERVAÇOES'] = obsVoo || '-';
                     f.properties['CLASSE'] = 'VOADO';
@@ -295,29 +288,33 @@
             btn.innerText = "Sincronizando..."; btn.disabled = true;
 
             var payloadStr = JSON.stringify({ 
-                lancamentos: itensParaLancar, 
+                chaves: itensParaLancar, 
                 dataVoo: dataFormatadaBR, 
                 obs: obsVoo 
             });
 
-            // Forçamos um envio do tipo GET com a carga anexada na URL.
-            // O navegador NÃO bloqueia porque ele interpreta isso como acessar um site qualquer!
-            var urlNuclear = URL_WEBHOOK_GOOGLE_APPS_SCRIPT + "?payloadData=" + encodeURIComponent(payloadStr);
+            // Insere os dados no input oculto
+            document.getElementById('payloadDataInput').value = payloadStr;
+            submitted = true;
+            
+            // Dá o comando de enviar form (Isso ignora qualquer bloqueio de CORS do Google)
+            document.getElementById('hidden_form').submit();
 
-            fetch(urlNuclear, {
-                method: 'GET',
-                mode: 'no-cors'
-            })
-            .then(() => console.log("Comando GET forçado para o Google Planilhas!"))
-            .catch(err => console.warn("Aviso:", err));
+            // Fallback de segurança para fechar a tela de qualquer jeito
+            setTimeout(function() {
+                if(submitted) onFormSubmitted();
+            }, 1500);
+        }
 
-            setTimeout(() => {
-                btn.innerText = "Sincronizar com Planilha"; btn.disabled = false;
-                fecharModal();
-                if(modoSelecao) alternarModoSelecao(false);
-                document.getElementById('theme-select').value = 'CLASSE';
-                redesenharMapa('CLASSE');
-            }, 800);
+        function onFormSubmitted() {
+            submitted = false;
+            var btn = document.getElementById('btn-submit');
+            btn.innerText = "Sincronizar com Planilha"; btn.disabled = false;
+            fecharModal();
+            if(modoSelecao) alternarModoSelecao(false);
+            document.getElementById('theme-select').value = 'CLASSE';
+            redesenharMapa('CLASSE');
+            console.log("Dados sincronizados no Google via Iframe!");
         }
 
         function redesenharMapa(tema) {
