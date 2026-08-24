@@ -144,7 +144,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 
     <script>
-        // ======= COLE A SUA CHAVE DO APPS SCRIPT AQUI !!! ========
+        // ======= COLE A SUA CHAVE DO APPS SCRIPT AQUI ======
         const URL_WEBHOOK_GOOGLE_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbx6vNU0kD0vVK-b8G7CcEk2CBai6mIOGslIjw6_YnpMywyAxgJmo7rAA8EzPIM45QkTpQ/exec"; 
 
         Chart.register(ChartDataLabels);
@@ -265,6 +265,7 @@
             document.getElementById('modal-overlay').style.display = 'none';
         }
 
+        // A MÁGICA ACONTECE AQUI: Substituímos JSON direto por URLSearchParams
         function enviarDadosAppScript() {
             var btn = document.getElementById('btn-submit');
             var dataVoo = document.getElementById('form-data').value;
@@ -274,6 +275,7 @@
 
             var dataFormatadaBR = dataVoo.split('-').reverse().join('/');
 
+            // Atualização visual na interface
             geojsonData.features.forEach(function(f) {
                 var fFazenda = String(f.properties.FAZENDA || '').trim();
                 var fTalhao = String(f.properties.TALHAO || '').trim();
@@ -294,21 +296,25 @@
 
             btn.innerText = "Sincronizando..."; btn.disabled = true;
 
-            var payload = JSON.stringify({ 
+            // Formata o Payload encapsulado
+            var payloadStr = JSON.stringify({ 
                 lancamentos: itensParaLancar, 
                 dataVoo: dataFormatadaBR, 
                 obs: obsVoo 
             });
 
+            // Envia como se fosse um formulário real! (Fura a proteção de CORS)
+            var formBody = new URLSearchParams();
+            formBody.append('payloadData', payloadStr);
+
             fetch(URL_WEBHOOK_GOOGLE_APPS_SCRIPT, {
                 method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: payload
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formBody.toString()
             })
             .then(res => res.text())
-            .then(txt => console.log("Enviado com sucesso!"))
-            .catch(err => console.warn("Aviso de rede:", err));
+            .then(txt => console.log("Retorno Sucesso Google:", txt))
+            .catch(err => console.warn("Aviso de rede (Normal em Webhooks Google):", err));
 
             setTimeout(() => {
                 btn.innerText = "Sincronizar com Planilha"; btn.disabled = false;
@@ -316,7 +322,7 @@
                 if(modoSelecao) alternarModoSelecao(false);
                 document.getElementById('theme-select').value = 'CLASSE';
                 redesenharMapa('CLASSE');
-            }, 600);
+            }, 800);
         }
 
         function redesenharMapa(tema) {
