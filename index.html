@@ -78,7 +78,6 @@
         <button class="btn-banner btn-cancelar" onclick="alternarModoSelecao(false)">Cancelar</button>
     </div>
 
-    <!-- Modal de Formulário -->
     <div id="modal-overlay">
         <div class="modal-content">
             <h4 id="modal-title">LANÇAR VOO</h4>
@@ -137,12 +136,6 @@
     </div>
 
     <div id="map"></div>
-
-    <!-- IFRAME E FORMULÁRIO OCULTO PARA IGNORAR BLOQUEIOS DE CORS LOCAL -->
-    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
-    <form id="hidden_form" method="POST" target="hidden_iframe" style="display:none;">
-        <input type="hidden" name="dummy" id="hidden_form_payload">
-    </form>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
@@ -206,7 +199,7 @@
         function configurarFeature(feature, layer) {
             if (modoSelecao) {
                 layer.on('click', function() {
-                    var chave = feature.properties.CHAVE;
+                    var chave = String(feature.properties.CHAVE).trim();
                     if (chavesSelecionadas.has(chave)) { chavesSelecionadas.delete(chave); } 
                     else { chavesSelecionadas.add(chave); }
                     layer.setStyle(obterEstilo(feature, document.getElementById('theme-select').value));
@@ -242,7 +235,9 @@
                 chavesParaLancar = Array.from(chavesSelecionadas);
                 document.getElementById('modal-title').innerText = "LANÇAR VOO (PARCIAL)";
             } else {
-                geojsonLayer.eachLayer(function(l) { chavesParaLancar.push(l.feature.properties.CHAVE); });
+                geojsonLayer.eachLayer(function(l) { 
+                    chavesParaLancar.push(String(l.feature.properties.CHAVE).trim()); 
+                });
                 document.getElementById('modal-title').innerText = "LANÇAR VOO: " + fazendaFiltradaAtual.toUpperCase();
             }
             
@@ -264,9 +259,9 @@
 
             var dataFormatadaBR = dataVoo.split('-').reverse().join('/');
 
-            // 1. Atualização em Tempo Real no Mapa
+            // 1. Atualização local no GeoJSON
             geojsonData.features.forEach(function(f) {
-                if (chavesParaLancar.includes(f.properties.CHAVE)) {
+                if (chavesParaLancar.includes(String(f.properties.CHAVE).trim())) {
                     f.properties['DATA VOO'] = dataFormatadaBR;
                     f.properties['OBSERVAÇÕES'] = obsVoo || '-';
                     f.properties['CLASSE'] = 'VOADO';
@@ -275,24 +270,24 @@
 
             btn.innerText = "Sincronizando..."; btn.disabled = true;
 
-            // 2. Envio pelo Iframe Invisível (Garante o envio sem bloqueio de CORS no PC)
-            var payload = JSON.stringify({ chaves: chavesParaLancar, dataVoo: dataFormatadaBR, obs: obsVoo });
+            // 2. Envio sem bloqueio de CORS
+            var payload = JSON.stringify({ 
+                chaves: chavesParaLancar, 
+                dataVoo: dataFormatadaBR, 
+                obs: obsVoo 
+            });
 
-            var form = document.getElementById('hidden_form');
-            form.action = URL_WEBHOOK_GOOGLE_APPS_SCRIPT;
-            
-            // Injeta o JSON cru no corpo do formulário
-            var blob = new Blob([payload], {type: 'text/plain'});
-            var reader = new FileReader();
-            
-            // Disparo direto via fetch com fallback para o form
             fetch(URL_WEBHOOK_GOOGLE_APPS_SCRIPT, {
                 method: 'POST',
-                mode: 'no-cors',
-                headers: { 'Content-Type': 'text/plain' },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: payload
-            }).catch(function(e) {
-                console.log("Fallback via Form target");
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log("Sucesso:", data);
+            })
+            .catch(err => {
+                console.warn("Envio processado:", err);
             });
 
             setTimeout(() => {
